@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, Switch, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SearchBar from '../components/SearchBar';
 import GifGrid from '../components/GifGrid';
 import { COLORS } from '../constants/theme';
 import { useGiphy } from '../hooks/useGiphy';
+import { useTheme } from '../context/ThemeContext'; // Import ThemeContext
 
 const HomeScreen = () => {
-  const [gifs, setGifs] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { theme, toggleTheme } = useTheme(); // Access theme and toggleTheme from ThemeContext
+  const isDarkMode = theme === 'dark';
+
+  const [gifs, setGifs] = React.useState([]);
+  const [offset, setOffset] = React.useState(0);
+  const [searchQuery, setSearchQuery] = React.useState('');
   const { loading, error, fetchGifs } = useGiphy();
 
   const loadGifs = async (isNewSearch = false) => {
@@ -37,28 +40,26 @@ const HomeScreen = () => {
   };
 
   return (
-    <SafeAreaView style={[
-      styles.container,
-      { backgroundColor: isDarkMode ? COLORS.background.dark : COLORS.background.light }
-    ]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: isDarkMode ? COLORS.background.dark : COLORS.background.light },
+      ]}
+    >
       <View style={styles.header}>
         <Text style={[styles.title, { color: isDarkMode ? COLORS.text.dark : COLORS.text.light }]}>
           Giphy Store
         </Text>
         <Switch
           value={isDarkMode}
-          onValueChange={setIsDarkMode}
+          onValueChange={toggleTheme} // Use global toggleTheme function
           trackColor={{ false: '#666', true: COLORS.primary }}
         />
       </View>
       <SearchBar onSearch={handleSearch} theme={isDarkMode ? 'dark' : 'light'} />
       {error && <Text style={styles.error}>{error}</Text>}
       {loading && <ActivityIndicator size="large" color={COLORS.primary} />}
-      <GifGrid
-        gifs={gifs}
-        onLoadMore={() => loadGifs()}
-        isDarkMode={isDarkMode}
-      />
+      <GifGrid gifs={gifs} onLoadMore={() => loadGifs()} isDarkMode={isDarkMode} />
     </SafeAreaView>
   );
 };

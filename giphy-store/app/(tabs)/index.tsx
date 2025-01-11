@@ -1,65 +1,82 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  TextInput, 
-  FlatList, 
-  Image, 
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  FlatList,
+  Image,
   TouchableOpacity,
   Share,
-  useColorScheme,
   ActivityIndicator,
-  Dimensions
+  Dimensions,
+  Alert,
 } from 'react-native';
 import { debounce } from 'lodash';
 import { useGiphySearch } from '../../src/hooks/useGiphySearch';
 import { COLORS } from '../../src/constants/theme';
 import { Gif } from '../../src/types/giphy';
 import * as FileSystem from 'expo-file-system';
+import { useTheme } from '../../src/context/ThemeContext';
 
 const COLUMN_COUNT = 2;
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / COLUMN_COUNT - 16;
 
 export default function TabOneScreen() {
-  const [gifs, setGifs] = useState<Gif[]>([]);
+  const { theme } = useTheme(); // Access theme from ThemeContext
+  const isDark = theme === 'dark'; // Determine if the theme is dark
+
+  const [gifs, setGifs] = useState<Gif[]>([]); // Explicitly type state as Gif[]
   const [offset, setOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const { loading, error, fetchGifs } = useGiphySearch();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
-  const loadGifs = useCallback(async (isNewSearch = false) => {
-    const newOffset = isNewSearch ? 0 : offset;
-    const endpoint = searchQuery ? 'search' : 'trending';
-    const params = {
-      limit: 20,
-      offset: newOffset,
-      ...(searchQuery && { q: searchQuery }),
-    };
+  const loadGifs = useCallback(
+    async (isNewSearch = false) => {
+      const newOffset = isNewSearch ? 0 : offset;
+      const endpoint = searchQuery ? 'search' : 'trending';
+      const params = {
+        limit: 20,
+        offset: newOffset,
+        ...(searchQuery && { q: searchQuery }),
+      };
 
-    const newGifs = await fetchGifs(endpoint, params);
-    setGifs(isNewSearch ? newGifs : [...gifs, ...newGifs]);
-    setOffset(newOffset + 20);
-  }, [offset, searchQuery, fetchGifs, gifs]);
+      const newGifs = await fetchGifs(endpoint, params);
+      setGifs(isNewSearch ? newGifs : [...gifs, ...newGifs]);
+      setOffset(newOffset + 20);
+    },
+    [offset, searchQuery, fetchGifs, gifs]
+  );
+
+  useEffect(() => {
+    if (searchQuery.trim() !== '') {
+      loadGifs(true);
+    }
+  }, [searchQuery]);
 
   useEffect(() => {
     loadGifs();
   }, []);
 
-  const handleSearch = debounce((text: string) => {
-    setSearchQuery(text);
-    loadGifs(true);
-  }, 500);
+  const debouncedSearch = useCallback(
+    debounce((text: string) => {
+      setSearchQuery(text);
+    }, 500),
+    []
+  );
+
+  const handleSearch = (text: string) => {
+    debouncedSearch(text);
+  };
 
   const handleShare = async (gif: Gif) => {
     try {
       await Share.share({
         url: gif.images.original.url,
-        message: 'Check out this GIF!',
+        message: 'Check out this awesome GIF!',
       });
     } catch (error) {
-      console.error(error);
+      console.error('Error sharing GIF:', error);
     }
   };
 
@@ -67,48 +84,81 @@ export default function TabOneScreen() {
     try {
       const fileUri = `${FileSystem.documentDirectory}${gif.id}.gif`;
       await FileSystem.downloadAsync(gif.images.original.url, fileUri);
+      Alert.alert('Download Complete', `GIF saved to ${fileUri}`);
     } catch (error) {
-      console.error(error);
+      console.error('Error downloading GIF:', error);
+      Alert.alert('Error', 'Failed to download GIF.');
     }
   };
 
-  const renderItem = ({ item }: { item: Gif }) => (
-    <View style={styles.gifContainer}>
-      <TouchableOpacity
-        onPress={() => handleShare(item)}
-        onLongPress={() => handleDownload(item)}
-      >
-        <Image
-          source={{ uri: item.images.fixed_width.url }}
-          style={[styles.gif, {
-            height: (ITEM_WIDTH * parseInt(item.images.fixed_width.height)) / 
-                    parseInt(item.images.fixed_width.width)
-          }]}
-        />
-      </TouchableOpacity>
-    </View>
-  );
+  const GifItem = ({ gif }: { gif: Gif }) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const togglePlayPause = () => {
+      setIsPlaying((prev) => !prev);
+    };
+
+    return (
+      <View style={styles.gifContainer}>
+        <TouchableOpacity onPress={togglePlayPause}>
+          <Image
+            source={{
+              uri: isPlaying
+                ? gif.images.fixed_width.url
+                : gif.images.fixed_width_still?.url || gif.images.fixed_width.url,
+            }}
+            style={[
+              styles.gif,
+              {
+                height:
+                  (ITEM_WIDTH * parseInt(gif.images.fixed_width.height)) /
+                  parseInt(gif.images.fixed_width.width),
+              },
+            ]}
+          />
+        </TouchableOpacity>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity style={styles.button} onPress={() => handleShare(gif)}>
+            <Image
+              source={require('../../src/assests/blue-icon.png')}
+              style={styles.icon}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={() => handleDownload(gif)}>
+            <Image
+              source={require('../../src/assests/download-blue.png')}
+              style={styles.icon}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderItem = ({ item }: { item: Gif }) => <GifItem gif={item} />;
 
   return (
-    <View style={[
-      styles.container,
-      { backgroundColor: isDark ? COLORS.background.dark : COLORS.background.light }
-    ]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? COLORS.background.dark : COLORS.background.light },
+      ]}
+    >
       <TextInput
         style={[
           styles.searchInput,
-          { 
+          {
             backgroundColor: isDark ? '#333' : '#eee',
-            color: isDark ? COLORS.text.dark : COLORS.text.light 
-          }
+            color: isDark ? COLORS.text.dark : COLORS.text.light,
+          },
         ]}
         placeholder="Search GIFs..."
         placeholderTextColor={isDark ? '#999' : '#666'}
         onChangeText={handleSearch}
       />
-      
+
       {loading && <ActivityIndicator size="large" color={COLORS.primary} />}
-      
+
       <FlatList
         data={gifs}
         renderItem={renderItem}
@@ -140,9 +190,23 @@ const styles = StyleSheet.create({
   gifContainer: {
     flex: 1,
     padding: 4,
+    position: 'relative',
   },
   gif: {
     width: ITEM_WIDTH,
     borderRadius: 8,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  button: {
+    padding: 8,
+    borderRadius: 4,
+  },
+  icon: {
+    width: 24,
+    height: 24,
   },
 });

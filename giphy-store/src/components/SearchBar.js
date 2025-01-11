@@ -16,7 +16,7 @@ const SearchBar = ({ onSearch, theme }) => {
           { backgroundColor: theme === 'dark' ? '#333' : '#eee',
             color: theme === 'dark' ? COLORS.text.dark : COLORS.text.light }
         ]}
-        placeholder="Search GIFs..."
+        placeholder="Search GIFFs..."
         placeholderTextColor={theme === 'dark' ? '#999' : '#666'}
         onChangeText={debouncedSearch}
       />
